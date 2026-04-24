@@ -1,0 +1,248 @@
+{
+  "uid": "agrosmart-overview",
+  "title": "AgroSmart — Vista Operacional",
+  "tags": ["agrosmart", "unad", "etapa4"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "fiscalYearStartMonth": 0,
+  "liveNow": true,
+  "editable": true,
+  "graphTooltip": 1,
+  "annotations": {
+    "list": [
+      {
+        "name": "Riegos",
+        "enable": true,
+        "iconColor": "rgba(33, 150, 243, 0.9)",
+        "datasource": {
+          "type": "postgres",
+          "uid": "agrosmart_timescale"
+        },
+        "target": {
+          "rawSql": "SELECT time AS time, node_id AS text FROM irrigation_events WHERE $__timeFilter(time)",
+          "rawQuery": true,
+          "format": "table"
+        }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Humedad del suelo — último valor por zona",
+      "datasource": {"type": "postgres", "uid": "agrosmart_timescale"},
+      "gridPos": {"h": 6, "w": 24, "x": 0, "y": 0},
+      "options": {
+        "colorMode": "background",
+        "graphMode": "area",
+        "justifyMode": "center",
+        "orientation": "horizontal",
+        "reduceOptions": {
+          "calcs": ["lastNotNull"],
+          "fields": "",
+          "values": false
+        },
+        "textMode": "value_and_name"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "orange", "value": 30},
+              {"color": "yellow", "value": 40},
+              {"color": "green", "value": 55}
+            ]
+          }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "rawSql": "SELECT time_bucket('1m', time) AS time, node_id AS metric, avg(soil_moisture_pct) AS value FROM telemetry WHERE $__timeFilter(time) GROUP BY 1,2 ORDER BY 1",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Humedad del suelo en el tiempo",
+      "datasource": {"type": "postgres", "uid": "agrosmart_timescale"},
+      "gridPos": {"h": 9, "w": 16, "x": 0, "y": 6},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 15,
+            "gradientMode": "opacity",
+            "showPoints": "never"
+          }
+        }
+      },
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["mean", "last", "min", "max"]},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "rawSql": "SELECT time_bucket('30s', time) AS time, node_id AS metric, avg(soil_moisture_pct) AS value FROM telemetry WHERE $__timeFilter(time) GROUP BY 1,2 ORDER BY 1",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Temperatura ambiente vs. humedad ambiente (zona 1)",
+      "datasource": {"type": "postgres", "uid": "agrosmart_timescale"},
+      "gridPos": {"h": 9, "w": 8, "x": 16, "y": 6},
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 10
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "ambient_humidity_pct"},
+            "properties": [{"id": "unit", "value": "percent"}]
+          },
+          {
+            "matcher": {"id": "byName", "options": "ambient_temp_c"},
+            "properties": [{"id": "unit", "value": "celsius"}]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "rawSql": "SELECT time_bucket('30s', time) AS time, avg(ambient_temp_c) AS ambient_temp_c, avg(ambient_humidity_pct) AS ambient_humidity_pct FROM telemetry WHERE $__timeFilter(time) AND node_id='zone-1' GROUP BY 1 ORDER BY 1",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "table",
+      "title": "Últimas decisiones del coordinador",
+      "datasource": {"type": "postgres", "uid": "agrosmart_timescale"},
+      "gridPos": {"h": 9, "w": 12, "x": 0, "y": 15},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {"align": "left"}
+        },
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "decision"},
+            "properties": [
+              {"id": "custom.cellOptions", "value": {"type": "color-background"}},
+              {
+                "id": "mappings",
+                "value": [
+                  {"type": "value", "options": {"irrigate": {"color": "green"}, "hold": {"color": "blue"}}}
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "rawSql": "SELECT time, node_id, decision, rationale FROM coordinator_decisions WHERE $__timeFilter(time) ORDER BY time DESC LIMIT 25",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "table",
+      "title": "Eventos de riego ejecutados",
+      "datasource": {"type": "postgres", "uid": "agrosmart_timescale"},
+      "gridPos": {"h": 9, "w": 12, "x": 12, "y": 15},
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": {"align": "left"}
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "rawSql": "SELECT time, node_id, duration_s, volume_l, moisture_before, moisture_target, reason FROM irrigation_events WHERE $__timeFilter(time) ORDER BY time DESC LIMIT 25",
+          "format": "table"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Voltaje de batería (promedio último minuto)",
+      "datasource": {"type": "postgres", "uid": "agrosmart_timescale"},
+      "gridPos": {"h": 5, "w": 24, "x": 0, "y": 24},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "volt",
+          "min": 11.4,
+          "max": 12.8,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {"color": "red", "value": null},
+              {"color": "orange", "value": 11.8},
+              {"color": "green", "value": 12.2}
+            ]
+          }
+        }
+      },
+      "options": {
+        "colorMode": "value",
+        "graphMode": "area",
+        "orientation": "horizontal",
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "textMode": "value_and_name"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "rawSql": "SELECT time_bucket('30s', time) AS time, node_id AS metric, avg(battery_v) AS value FROM telemetry WHERE $__timeFilter(time) GROUP BY 1,2 ORDER BY 1",
+          "format": "time_series"
+        }
+      ]
+    }
+  ]
+}

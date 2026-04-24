@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+env/
+ENV/
+
+# Environment files (contain local secrets/credentials)
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+*.swp
+*~
+
+# Docker state and runtime data
+docker-data/
+*.pid
+
+# Logs
+*.log
+logs/
+
+# Compiled front-end assets (none for now, reserved)
+node_modules/
+dist/
+build/

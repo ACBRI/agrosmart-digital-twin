@@ -1,0 +1,218 @@
+name: agrosmart
+
+x-python-base: &python-base
+  restart: unless-stopped
+  environment:
+    MQTT_HOST: mosquitto
+    MQTT_PORT: 1883
+    PYTHONUNBUFFERED: "1"
+    LOG_LEVEL: INFO
+
+networks:
+  agrosmart_net:
+    name: agrosmart_net
+    driver: bridge
+
+volumes:
+  agrosmart_timescale_data:
+    name: agrosmart_timescale_data
+  agrosmart_grafana_data:
+    name: agrosmart_grafana_data
+  agrosmart_mosquitto_data:
+    name: agrosmart_mosquitto_data
+
+services:
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: agrosmart_mosquitto
+    restart: unless-stopped
+    ports:
+      - "${AGROSMART_MQTT_PORT:-18830}:1883"
+      - "${AGROSMART_MQTT_WS_PORT:-18831}:9001"
+    volumes:
+      - ./mosquitto/config/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - agrosmart_mosquitto_data:/mosquitto/data
+    networks:
+      - agrosmart_net
+
+  timescaledb:
+    image: timescale/timescaledb:2.14.2-pg15
+    container_name: agrosmart_timescaledb
+    restart: unless-stopped
+    ports:
+      - "${AGROSMART_DB_PORT:-54329}:5432"
+    environment:
+      POSTGRES_USER: ${AGROSMART_DB_USER:-agrosmart}
+      POSTGRES_PASSWORD: ${AGROSMART_DB_PASSWORD:-agrosmart_local_dev}
+      POSTGRES_DB: ${AGROSMART_DB_NAME:-agrosmart}
+    volumes:
+      - agrosmart_timescale_data:/var/lib/postgresql/data
+      - ./timescaledb/init.sql:/docker-entrypoint-initdb.d/01_init.sql:ro
+    networks:
+      - agrosmart_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${AGROSMART_DB_USER:-agrosmart} -d ${AGROSMART_DB_NAME:-agrosmart}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  weather-mock:
+    build: ./services/weather-mock
+    container_name: agrosmart_weather
+    restart: unless-stopped
+    ports:
+      - "${AGROSMART_WEATHER_PORT:-8096}:8000"
+    networks:
+      - agrosmart_net
+
+  telemetry-ingestor:
+    build: ./services/telemetry-ingestor
+    container_name: agrosmart_ingestor
+    <<: *python-base
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      PYTHONUNBUFFERED: "1"
+      LOG_LEVEL: INFO
+      DB_HOST: timescaledb
+      DB_PORT: 5432
+      DB_NAME: ${AGROSMART_DB_NAME:-agrosmart}
+      DB_USER: ${AGROSMART_DB_USER:-agrosmart}
+      DB_PASSWORD: ${AGROSMART_DB_PASSWORD:-agrosmart_local_dev}
+    depends_on:
+      mosquitto:
+        condition: service_started
+      timescaledb:
+        condition: service_healthy
+    networks:
+      - agrosmart_net
+
+  coordinator:
+    build: ./services/coordinator
+    container_name: agrosmart_coordinator
+    <<: *python-base
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      PYTHONUNBUFFERED: "1"
+      LOG_LEVEL: INFO
+      WEATHER_URL: http://weather-mock:8000
+      MOISTURE_LOW: ${AGROSMART_MOISTURE_LOW:-35}
+      MOISTURE_TARGET: ${AGROSMART_MOISTURE_TARGET:-70}
+    depends_on:
+      - mosquitto
+      - weather-mock
+    networks:
+      - agrosmart_net
+
+  actuator:
+    build: ./services/actuator
+    container_name: agrosmart_actuator
+    <<: *python-base
+    depends_on:
+      - mosquitto
+    networks:
+      - agrosmart_net
+
+  node-zone-1:
+    build: ./services/node-simulator
+    container_name: agrosmart_node_zone1
+    <<: *python-base
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      PYTHONUNBUFFERED: "1"
+      LOG_LEVEL: INFO
+      NODE_ID: zone-1
+      NODE_CROP: maiz
+      NODE_FIELD_CAPACITY: 72
+      NODE_WILTING_POINT: 18
+      NODE_INITIAL_MOISTURE: 55
+      TIME_SCALE: ${AGROSMART_TIME_SCALE:-60}
+      TELEMETRY_INTERVAL_S: ${AGROSMART_TELEMETRY_INTERVAL_S:-900}
+    depends_on:
+      - mosquitto
+      - actuator
+    networks:
+      - agrosmart_net
+
+  node-zone-2:
+    build: ./services/node-simulator
+    container_name: agrosmart_node_zone2
+    <<: *python-base
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      PYTHONUNBUFFERED: "1"
+      LOG_LEVEL: INFO
+      NODE_ID: zone-2
+      NODE_CROP: tomate
+      NODE_FIELD_CAPACITY: 68
+      NODE_WILTING_POINT: 22
+      NODE_INITIAL_MOISTURE: 40
+      TIME_SCALE: ${AGROSMART_TIME_SCALE:-60}
+      TELEMETRY_INTERVAL_S: ${AGROSMART_TELEMETRY_INTERVAL_S:-900}
+    depends_on:
+      - mosquitto
+      - actuator
+    networks:
+      - agrosmart_net
+
+  node-zone-3:
+    build: ./services/node-simulator
+    container_name: agrosmart_node_zone3
+    <<: *python-base
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+      PYTHONUNBUFFERED: "1"
+      LOG_LEVEL: INFO
+      NODE_ID: zone-3
+      NODE_CROP: papa
+      NODE_FIELD_CAPACITY: 75
+      NODE_WILTING_POINT: 20
+      NODE_INITIAL_MOISTURE: 48
+      TIME_SCALE: ${AGROSMART_TIME_SCALE:-60}
+      TELEMETRY_INTERVAL_S: ${AGROSMART_TELEMETRY_INTERVAL_S:-900}
+    depends_on:
+      - mosquitto
+      - actuator
+    networks:
+      - agrosmart_net
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    container_name: agrosmart_grafana
+    restart: unless-stopped
+    ports:
+      - "${AGROSMART_GRAFANA_PORT:-3333}:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: ${AGROSMART_GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${AGROSMART_GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_INSTALL_PLUGINS: ""
+      AGROSMART_DB_USER: ${AGROSMART_DB_USER:-agrosmart}
+      AGROSMART_DB_PASSWORD: ${AGROSMART_DB_PASSWORD:-agrosmart_local_dev}
+      AGROSMART_DB_NAME: ${AGROSMART_DB_NAME:-agrosmart}
+    volumes:
+      - agrosmart_grafana_data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - timescaledb
+    networks:
+      - agrosmart_net
+
+  web-ui:
+    image: nginx:1.27-alpine
+    container_name: agrosmart_web
+    restart: unless-stopped
+    ports:
+      - "${AGROSMART_WEB_PORT:-8095}:80"
+    volumes:
+      - ./services/web-ui/html:/usr/share/nginx/html:ro
+      - ./services/web-ui/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - agrosmart_net

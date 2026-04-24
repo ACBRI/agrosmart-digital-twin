@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AgroSmart — Panel del Operador</title>
+    <link rel="stylesheet" href="styles.css">
+    <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
+</head>
+<body>
+    <header class="topbar">
+        <div class="brand">
+            <span class="brand-mark"></span>
+            <div class="brand-text">
+                <h1>AgroSmart</h1>
+                <p>Panel del operador — Grupo 302 · UNAD · Proyecto de Ingeniería I</p>
+            </div>
+        </div>
+        <div class="status">
+            <span id="connection-dot" class="dot dot-off" aria-hidden="true"></span>
+            <span id="connection-label">Conectando al broker MQTT…</span>
+        </div>
+    </header>
+
+    <main>
+        <section class="grid-zones" id="zones"></section>
+
+        <section class="two-columns">
+            <article class="card">
+                <header class="card-header">
+                    <h2>Actividad del coordinador</h2>
+                    <span class="badge" id="weather-badge">clima · —</span>
+                </header>
+                <ul id="decision-log" class="activity-log"></ul>
+            </article>
+
+            <article class="card">
+                <header class="card-header">
+                    <h2>Eventos de riego</h2>
+                    <button id="inject-rain" type="button" class="button">Inyectar pronóstico de lluvia</button>
+                </header>
+                <ul id="irrigation-log" class="activity-log"></ul>
+            </article>
+        </section>
+    </main>
+
+    <footer class="footer">
+        <span>Digital Twin &middot; MQTT sobre WebSockets &middot; refresco en vivo</span>
+        <a href="http://localhost:3333" target="_blank" rel="noopener">Abrir Grafana</a>
+    </footer>
+
+    <script src="app.js"></script>
+</body>
+</html>
