@@ -3,6 +3,8 @@
 Proyecto de Ingeniería I · 202337120A_2201 · UNAD ECBTI · Grupo 302
 Autor del prototipo individual: Andrés Camilo Briñez Núñez
 
+[**Ver demostración en video (YouTube · 4 min)**](https://youtu.be/0bhDaJdJU0A)
+
 Este prototipo materializa de manera **digital** el diseño de AgroSmart
 construido en la Etapa 3: un sistema de riego inteligente de bajo costo
 con nodos de campo autónomos, un coordinador central con datos
