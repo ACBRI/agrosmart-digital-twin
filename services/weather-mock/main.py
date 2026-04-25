@@ -12,10 +12,18 @@ import time
 from dataclasses import dataclass, field
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 
 app = FastAPI(title="AgroSmart Weather Mock", version="1.0.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
+    allow_headers=["*"],
+)
 
 
 @dataclass
