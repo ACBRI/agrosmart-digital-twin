@@ -23,12 +23,19 @@ sistema completo.
 | Nodo ESP32 + sensores + LoRa      | `node-zone-1`, `node-zone-2`, `node-zone-3` | Python 3.12 · paho-mqtt       |
 | Red de comunicación LoRa          | `mosquitto`                                  | Eclipse Mosquitto 2.0 (MQTT)  |
 | Coordinador central (ESP32+WiFi)  | `coordinator`                                | Python 3.12 · httpx           |
+| **Motor predictivo de ahorro**    | **`predictor`** (aporte grupal)              | **FastAPI · proyección de humedad** |
 | Consulta a API meteorológica      | `weather-mock`                               | FastAPI + Uvicorn             |
 | Electroválvulas y confirmación    | `actuator`                                   | Python 3.12 · paho-mqtt       |
 | Persistencia de series temporales | `timescaledb`                                | TimescaleDB (PostgreSQL 15)   |
 | Dashboard Grafana                 | `grafana`                                    | Grafana 10.4                  |
 | Panel operador (HMI)              | `web-ui`                                     | Nginx · HTML · JS · MQTT.js   |
 | Puente MQTT → base de datos       | `telemetry-ingestor`                         | Python 3.12 · psycopg 3       |
+
+> **Nota grupal (Etapa 4):** el servicio `predictor` integra la lógica
+> predictiva propuesta por **Wilson Steven Rodríguez Castellanos**
+> para el prototipo grupal. El coordinador consulta este servicio antes
+> de emitir cada decisión y registra el ahorro estimado en TimescaleDB,
+> donde Grafana lo presenta como panel adicional.
 
 Los mensajes entre nodos y coordinador siguen el esquema:
 

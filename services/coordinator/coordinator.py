@@ -41,6 +41,7 @@ class Coordinator:
             global_target_pct=_env_float("MOISTURE_TARGET", 70.0),
         )
         self.weather_url = os.environ.get("WEATHER_URL", "http://weather-mock:8000")
+        self.predictor_url = os.environ.get("PREDICTOR_URL", "http://predictor:8000")
         self.weather_cache: WeatherSnapshot = WeatherSnapshot(0.0, 0.0)
         self._stop = threading.Event()
 
@@ -114,6 +115,9 @@ class Coordinator:
         moisture = float(payload["soil_moisture_pct"])
         decision = self.engine.evaluate(node_id, moisture, self.weather_cache)
 
+        prediction = self._consult_predictor(node_id, payload, decision.target_pct)
+        decision = self._merge_with_prediction(decision, prediction)
+
         self._publish(
             TOPIC_DECISION.format(node_id=node_id),
             {
@@ -125,6 +129,7 @@ class Coordinator:
                 "target_pct": decision.target_pct,
                 "duration_s": decision.duration_s,
                 "weather": decision.weather,
+                "prediction": prediction,
             },
         )
 
@@ -162,6 +167,52 @@ class Coordinator:
             except (httpx.HTTPError, ValueError) as exc:
                 LOG.warning("weather fetch failed: %s", exc)
             self._stop.wait(30.0)
+
+    def _consult_predictor(self, node_id: str, telemetry: dict, target_pct: float) -> dict:
+        """Ask the predictor service whether irrigating now is justified.
+
+        Implements Wilson Steven Rodríguez's predictive logic as a
+        complementary check to the local EWMA decision: the coordinator
+        calls the predictor, logs its recommendation, and uses it to
+        refine the final action.
+        """
+        try:
+            params = {
+                "node_id": node_id,
+                "moisture_pct": telemetry["soil_moisture_pct"],
+                "ambient_temp_c": telemetry["ambient_temp_c"],
+                "ambient_humidity_pct": telemetry["ambient_humidity_pct"],
+                "low_threshold_pct": self.engine.zones[node_id].low_threshold_pct,
+                "target_pct": target_pct,
+                "wilting_point_pct": telemetry.get("wilting_point_pct", 20.0),
+                "field_capacity_pct": telemetry.get("field_capacity_pct", 72.0),
+            }
+            response = httpx.get(f"{self.predictor_url}/predict", params=params, timeout=2.0)
+            response.raise_for_status()
+            return response.json()
+        except (httpx.HTTPError, KeyError, ValueError) as exc:
+            LOG.warning("predictor unreachable for node=%s (%s); falling back to local rule", node_id, exc)
+            return {"recommendation": "n/a", "rationale": "predictor unavailable",
+                    "estimated_saving_pct": 0.0}
+
+    def _merge_with_prediction(self, decision, prediction: dict):
+        """Combine the local EWMA decision with the predictor recommendation.
+
+        Conservative policy: if either side recommends holding, hold.
+        That preserves water in any ambiguous case while still allowing
+        irrigation when both signals agree.
+        """
+        recommendation = prediction.get("recommendation", "n/a")
+        if recommendation in ("hold", "skip_rain") and decision.should_irrigate:
+            decision.should_irrigate = False
+            decision.rationale = (
+                f"local rule said irrigate but predictor recommends {recommendation}: "
+                f"{prediction.get('rationale', '')}"
+            )
+            decision.duration_s = 0
+        elif recommendation == "irrigate" and not decision.should_irrigate:
+            LOG.info("predictor suggested irrigate but local rule held; keeping local decision")
+        return decision
 
     def _heartbeat_loop(self) -> None:
         while not self._stop.is_set():

@@ -51,6 +51,21 @@ CREATE INDEX IF NOT EXISTS idx_decisions_node_time
     ON coordinator_decisions (node_id, time DESC);
 
 
+CREATE TABLE IF NOT EXISTS predictor_decisions (
+    time                            TIMESTAMPTZ       NOT NULL,
+    node_id                         TEXT              NOT NULL,
+    recommendation                  TEXT              NOT NULL,
+    projected_moisture_in_24h_pct   DOUBLE PRECISION,
+    estimated_saving_pct            DOUBLE PRECISION,
+    rationale                       TEXT
+);
+
+SELECT create_hypertable('predictor_decisions', 'time', if_not_exists => TRUE);
+
+CREATE INDEX IF NOT EXISTS idx_predictor_node_time
+    ON predictor_decisions (node_id, time DESC);
+
+
 -- Read-only role for Grafana.
 DO $$
 BEGIN

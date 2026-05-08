@@ -208,6 +208,75 @@
       ]
     },
     {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Ahorro hídrico estimado por el predictor (lógica de Wilson)",
+      "datasource": {"type": "postgres", "uid": "agrosmart_timescale"},
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": {
+            "drawStyle": "line",
+            "lineInterpolation": "smooth",
+            "lineWidth": 2,
+            "fillOpacity": 20
+          }
+        }
+      },
+      "options": {
+        "legend": {"displayMode": "table", "placement": "bottom", "calcs": ["mean", "last"]},
+        "tooltip": {"mode": "multi", "sort": "desc"}
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "rawSql": "SELECT time_bucket('30s', time) AS time, node_id AS metric, avg(estimated_saving_pct) AS value FROM predictor_decisions WHERE $__timeFilter(time) GROUP BY 1,2 ORDER BY 1",
+          "format": "time_series"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "table",
+      "title": "Recomendaciones del predictor",
+      "datasource": {"type": "postgres", "uid": "agrosmart_timescale"},
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+      "options": {"showHeader": true, "cellHeight": "sm"},
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "left"}},
+        "overrides": [
+          {
+            "matcher": {"id": "byName", "options": "recommendation"},
+            "properties": [
+              {"id": "custom.cellOptions", "value": {"type": "color-background"}},
+              {
+                "id": "mappings",
+                "value": [
+                  {"type": "value", "options": {
+                    "irrigate": {"color": "green"},
+                    "hold": {"color": "blue"},
+                    "skip_rain": {"color": "orange"}
+                  }}
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "rawSql": "SELECT time, node_id, recommendation, projected_moisture_in_24h_pct, estimated_saving_pct FROM predictor_decisions WHERE $__timeFilter(time) ORDER BY time DESC LIMIT 25",
+          "format": "table"
+        }
+      ]
+    },
+    {
       "id": 6,
       "type": "stat",
       "title": "Voltaje de batería (promedio último minuto)",

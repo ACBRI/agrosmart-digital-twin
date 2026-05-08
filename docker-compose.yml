@@ -65,6 +65,17 @@ services:
     networks:
       - agrosmart_net
 
+  predictor:
+    build: ./services/predictor
+    container_name: agrosmart_predictor
+    restart: unless-stopped
+    ports:
+      - "${AGROSMART_PREDICTOR_PORT:-8097}:8000"
+    depends_on:
+      - weather-mock
+    networks:
+      - agrosmart_net
+
   telemetry-ingestor:
     build: ./services/telemetry-ingestor
     container_name: agrosmart_ingestor
@@ -97,11 +108,13 @@ services:
       PYTHONUNBUFFERED: "1"
       LOG_LEVEL: INFO
       WEATHER_URL: http://weather-mock:8000
+      PREDICTOR_URL: http://predictor:8000
       MOISTURE_LOW: ${AGROSMART_MOISTURE_LOW:-35}
       MOISTURE_TARGET: ${AGROSMART_MOISTURE_TARGET:-70}
     depends_on:
       - mosquitto
       - weather-mock
+      - predictor
     networks:
       - agrosmart_net
 

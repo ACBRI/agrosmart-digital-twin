@@ -177,6 +177,26 @@ class Ingestor:
                 ),
             )
 
+            prediction = payload.get("prediction") or {}
+            recommendation = prediction.get("recommendation")
+            if recommendation and recommendation != "n/a":
+                cur.execute(
+                    """
+                    INSERT INTO predictor_decisions
+                        (time, node_id, recommendation,
+                         projected_moisture_in_24h_pct, estimated_saving_pct, rationale)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                    """,
+                    (
+                        _parse_ts(payload.get("timestamp")),
+                        payload["node_id"],
+                        recommendation,
+                        prediction.get("projected_moisture_in_24h_pct"),
+                        prediction.get("estimated_saving_pct"),
+                        prediction.get("rationale"),
+                    ),
+                )
+
     def _reopen_db(self) -> None:
         try:
             if self.conn:
